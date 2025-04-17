@@ -375,25 +375,26 @@
   let bettingLocked = false;
   let balance = 5000;
   let selectedSquare = null;
-  const placedBets = new Map();
-  const simPlayers = [];
+  let keepPlayingSolo = false;             // ← moved out here
+
+  const placedBets   = new Map();
+  const simPlayers   = [];
   const simPlacedChips = [];
   const playerColors = {
     Player: 'Yellow',
-    Luna: '#FFA500',
-    Blaze: '#800000',
-    Ace: '#008000',
-    Rogue: '#FF00FF',
-    Nova: '#00FF00',
-    Jet: '#FF0000'
+    Luna:   '#FFA500',
+    Blaze:  '#800000',
+    Ace:    '#008000',
+    Rogue:  '#FF00FF',
+    Nova:   '#00FF00',
+    Jet:    '#FF0000'
   };
 
-  // global configuration object
   const gameConfig = {
     mode: 'survival',         // "survival" or "race"
-    startingCash: 5000,
-    aiStartingCash: 5000,
-    raceTarget: 50000
+    startingCash:    5000,
+    aiStartingCash:  5000,
+    raceTarget:     50000
   };
 
   // -------------------- MODE MENU --------------------
@@ -409,11 +410,11 @@
     });
 
     document.getElementById('start-btn').addEventListener('click', () => {
-      gameConfig.mode            = document.querySelector('input[name="mode"]:checked').value;
-      gameConfig.raceTarget      = parseInt(document.getElementById('race-target').value, 10);
-      gameConfig.startingCash    = parseInt(document.getElementById('player-start').value, 10);
-      gameConfig.aiStartingCash  = parseInt(document.getElementById('ai-start').value, 10);
-      document.getElementById('mode-selector').style.display = 'none';
+      gameConfig.mode           = document.querySelector('input[name="mode"]:checked').value;
+      gameConfig.raceTarget     = parseInt(document.getElementById('race-target').value, 10);
+      gameConfig.startingCash   = parseInt(document.getElementById('player-start').value, 10);
+      gameConfig.aiStartingCash = parseInt(document.getElementById('ai-start').value, 10);
+      overlay.style.display     = 'none';
       startGame();
     });
   }
@@ -421,22 +422,23 @@
 
   // -------------------- START GAME --------------------
   function startGame() {
+    keepPlayingSolo = false;
     balance = gameConfig.startingCash;
     placedBets.clear();
     simPlayers.length = 0;
     updateBalanceDisplay();
     updatePlayerWager();
     generateSimPlayers();
-    document.querySelector('#player h3').style.color = playerColors["Player"];
+    document.querySelector('#player h3').style.color = playerColors.Player;
     startCountdownLoop();
   }
 
-  // -------------------- DOM REFERENCES --------------------
-  const roller        = document.getElementById('roller');
-  const clearBtn      = document.getElementById('clearBtn');
-  const betMenu       = document.getElementById('betMenu');
-  const balanceDisplay= document.getElementById('playerBalance');
-  const wagerDisplay  = document.getElementById('playerWager');
+  // -------------------- DOM REFS --------------------
+  const roller         = document.getElementById('roller');
+  const clearBtn       = document.getElementById('clearBtn');
+  const betMenu        = document.getElementById('betMenu');
+  const balanceDisplay = document.getElementById('playerBalance');
+  const wagerDisplay   = document.getElementById('playerWager');
 
   // -------------------- COUNTDOWN --------------------
   function startCountdownLoop(delayStart = 0) {
@@ -445,44 +447,53 @@
       countdownTimer = 25;
       display.textContent = countdownTimer;
       display.style.fontSize = '2rem';
-      display.style.color = 'black';
+      display.style.color    = 'black';
       setStatus("Bets Open", "#0f0");
       enableBetting();
+
       countdownInterval = setInterval(() => {
         countdownTimer--;
         display.textContent = countdownTimer;
-        if (countdownTimer <= 20 && countdownTimer > 10 && Math.random() < 0.4) simulateRandomAiBet();
-        if (countdownTimer <= 10 && countdownTimer > 5 && Math.random() < 0.7) simulateRandomAiBet();
-        if (countdownTimer === 10) setStatus("Bets Closing Soon", "#FFD700");
+
+        if (countdownTimer <= 20 && countdownTimer > 10 && Math.random() < 0.4)
+          simulateRandomAiBet();
+        if (countdownTimer <= 10 && countdownTimer > 5 && Math.random() < 0.7)
+          simulateRandomAiBet();
+
+        if (countdownTimer === 10) {
+          setStatus("Bets Closing Soon", "#FFD700");
+        }
         if (countdownTimer === 5) {
           setStatus("Bets Closed", "#f44");
           disableBetting();
         }
+
         if (countdownTimer <= 0) {
           clearInterval(countdownInterval);
           display.textContent = 'Resetting';
           setStatus("Awaiting Results", "#0f0");
           display.style.fontSize = '1rem';
-          display.style.color = '#fff';
+          display.style.color    = '#fff';
+
           const finalRoll = Math.floor(Math.random() * 20) + 1;
-			rollNumber(finalRoll, () => {
-			  setTimeout(() => {
-				clearSimulatedChipsByState('loser');
-				setTimeout(() => {
-				  clearSimulatedChipsByState('winner');
+          rollNumber(finalRoll, () => {
+            setTimeout(() => {
+              clearSimulatedChipsByState('loser');
+              setTimeout(() => {
+                clearSimulatedChipsByState('winner');
 
-				  // ←── right here, after everyone’s bets are cleared:
-				  checkEndConditions();
+                // ← after all bets cleared:
+                checkEndConditions();
 
-				  setTimeout(() => {
-					simulateFakeBets();
-					display.style.fontSize = '1rem';
-					display.style.color = 'black';
-					startCountdownLoop(0);
-				  }, 2000);
-				}, 4000);
-			  }, 4000);
-			});
+                setTimeout(() => {
+                  simulateFakeBets();
+                  display.style.fontSize = '1rem';
+                  display.style.color    = 'black';
+                  startCountdownLoop(0);
+                }, 2000);
+              }, 4000);
+            }, 4000);
+          });
         }
       }, 1000);
     }, delayStart);
@@ -499,9 +510,9 @@
     betMenu.style.display = 'none';
   }
   function setStatus(msg, color) {
-    const label = document.getElementById('statusLabel');
-    label.textContent = msg;
-    label.style.color = color || '#fff';
+    const lbl = document.getElementById('statusLabel');
+    lbl.textContent = msg;
+    lbl.style.color   = color || '#fff';
   }
   function updateClearButtonState() {
     clearBtn.disabled = bettingLocked;
@@ -515,13 +526,13 @@
   }
   function updatePlayerWager() {
     let total = 0;
-    placedBets.forEach(val => total += val);
+    placedBets.forEach(v => total += v);
     wagerDisplay.textContent = `$${total}`;
   }
   function showResultMessage(msg) {
     const bar = document.getElementById('resultBar');
-    bar.textContent = msg;
-    bar.style.color = '#FFD700';
+    bar.textContent   = msg;
+    bar.style.color   = '#FFD700';
     bar.style.animation = 'flashResult 1s ease';
     setTimeout(() => bar.style.animation = '', 1000);
   }
@@ -530,24 +541,25 @@
   function placeBet(square, amount) {
     if (bettingLocked || !square || square.classList.contains('no')) return;
     if (balance < amount) return alert("Not enough balance!");
-    const current = placedBets.get(square) || 0;
+    const cur = placedBets.get(square) || 0;
     balance -= amount;
-    placedBets.set(square, current + amount);
+    placedBets.set(square, cur + amount);
     updateBalanceDisplay();
     updatePlayerWager();
+
     let marker = square.querySelector('.bet-marker');
     if (!marker) {
       marker = document.createElement('div');
       marker.classList.add('bet-marker');
-      marker.style.backgroundColor = playerColors["Player"];
+      marker.style.backgroundColor = playerColors.Player;
       square.appendChild(marker);
     }
     marker.textContent = `$${placedBets.get(square)}`;
   }
   function clearBetsAndRefund() {
-    placedBets.forEach((amt, square) => {
-      const marker = square.querySelector('.bet-marker');
-      if (marker) marker.remove();
+    placedBets.forEach((amt,sq) => {
+      const m = sq.querySelector('.bet-marker');
+      if (m) m.remove();
       balance += amt;
     });
     placedBets.clear();
@@ -557,251 +569,225 @@
   function clearSimulatedChipsByState(state) {
     document.querySelectorAll('.sim-chip, .bet-marker').forEach(chip => {
       const isWin = chip.dataset.keep === 'true';
-      const square = chip.closest('.square');
-      if ((state === 'winner' && isWin) || (state === 'loser' && !isWin)) {
+      const sq    = chip.closest('.square');
+      if ((state==='winner'&&isWin)||(state==='loser'&&!isWin)) {
         chip.remove();
-        if (chip.classList.contains('bet-marker')) placedBets.delete(square);
+        if (chip.classList.contains('bet-marker')) placedBets.delete(sq);
       }
     });
     updatePlayerWager();
   }
 
   // -------------------- ROLLING --------------------
-  function rollNumber(finalNumber, onComplete) {
-    let delay = 40;
-    let maxDelay = 400;
-    function animate() {
-      const roll = Math.floor(Math.random() * 20) + 1;
+  function rollNumber(finalNumber, onComplete){
+    let delay = 40, maxDelay=400;
+    function anim(){
+      const roll = Math.floor(Math.random()*20)+1;
       roller.textContent = roll;
-      delay = Math.min(delay + 30, maxDelay);
-      if (delay >= maxDelay) {
-        roller.textContent = finalNumber;
-        roller.classList.add("pop");
-        setTimeout(() => {
-          roller.classList.remove("pop");
+      delay = Math.min(delay+30, maxDelay);
+      if (delay>=maxDelay){
+        roller.textContent=''+finalNumber;
+        roller.classList.add('pop');
+        setTimeout(()=>{
+          roller.classList.remove('pop');
           clearPreviousWinners();
           evaluateBets(finalNumber);
-          if (typeof onComplete === "function") onComplete();
-        }, 350);
+          onComplete && onComplete();
+        },350);
       } else {
-        setTimeout(animate, delay);
+        setTimeout(anim, delay);
       }
     }
-    animate();
+    anim();
   }
 
   // -------------------- WINNING --------------------
-  function evaluateBets(num) {
-    let playerWinnings = 0;
-    let aiMessages = [];
-    clearPreviousWinners();
-    let rolledSquare = null;
-    document.querySelectorAll('.square').forEach(square => {
-      const text = square.innerText.trim();
-      if (/^\d+$/.test(text) && parseInt(text) === num && !square.querySelector('#roller')) {
-        square.classList.add('winner-glow');
-        rolledSquare = square;
+// -------------------- WINNING --------------------
+function evaluateBets(num) {
+  let playerWinnings = 0;
+  let aiMessages     = [];
+  clearPreviousWinners();
+  let rolledSquare = null;
+
+  // highlight the rolled square
+  document.querySelectorAll('.square').forEach(square => {
+    const t = square.innerText.trim();
+    if (/^\d+$/.test(t) && +t === num && !square.querySelector('#roller')) {
+      square.classList.add('winner-glow');
+      rolledSquare = square;
+    }
+  });
+
+  // Player
+  placedBets.forEach((amt, square) => {
+    const win = getBetWinnings({ square, amount: amt }, num);
+    if (win > 0) {
+      playerWinnings += win;
+      const m = square.querySelector('.bet-marker');
+      m.classList.remove('win'); void m.offsetWidth; m.classList.add('win');
+      m.dataset.keep = 'true';
+    }
+    if (square === rolledSquare) square.classList.add('winner-glow');
+  });
+
+  // AI
+  simPlayers.forEach((p, i) => {
+    let totalWon = 0;
+    p.bets.forEach(bet => {
+      const w = getBetWinnings(bet, num);
+      totalWon += w;
+      if (w > 0) {
+        bet.square.querySelectorAll('.sim-chip').forEach(chip => {
+          setTimeout(() => {
+            chip.classList.remove('win'); void chip.offsetWidth; chip.classList.add('win');
+            chip.dataset.keep = 'true';
+          }, 50);
+        });
       }
+      if (bet.square === rolledSquare) bet.square.classList.add('winner-glow');
     });
-    // Player
-    placedBets.forEach((amt, square) => {
-      const winnings = getBetWinnings({ square, amount: amt }, num);
-      if (winnings > 0) {
-        playerWinnings += winnings;
-        const marker = square.querySelector('.bet-marker');
-        marker.classList.remove('win'); void marker.offsetWidth; marker.classList.add('win');
-        marker.dataset.keep = 'true';
-      }
-      if (square === rolledSquare) square.classList.add('winner-glow');
-    });
-    // AI
-    simPlayers.forEach((p, i) => {
-      let totalWon = 0;
-      p.bets?.forEach(bet => {
-        const winnings = getBetWinnings(bet, num);
-        totalWon += winnings;
-        if (winnings > 0) {
-          bet.square.querySelectorAll('.sim-chip').forEach(chip => {
-            setTimeout(() => {
-              chip.classList.remove('win'); void chip.offsetWidth; chip.classList.add('win');
-              chip.dataset.keep = 'true';
-            }, 50);
-          });
-        }
-        if (bet.square === rolledSquare) bet.square.classList.add('winner-glow');
-      });
+
+    // only update balance and UI if they aren’t busted
+    if (!p.busted) {
       p.balance += totalWon;
       if (totalWon > 0) aiMessages.push(`${p.name} won $${totalWon}`);
       const card = document.getElementById(`sim${i+1}`);
-      card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> $${p.balance}`;
-      card.querySelector('p:nth-of-type(2)').innerHTML = `<strong>Wager:</strong> $0`;
-      p.bets = [];
-    });
-    let msg = `Rolled ${num}.`;
-    if (playerWinnings > 0) msg += ` You won $${playerWinnings}! 🎉`;
-    if (aiMessages.length) msg += ` ${aiMessages.join(" | ")}`;
-    showResultMessage(msg);
-    balance += playerWinnings;
-    updateBalanceDisplay();
-    updatePlayerWager();
-    checkEndConditions();
-  }
+      card.querySelector('p:nth-of-type(1)')
+          .innerHTML = `<strong>Balance:</strong> $${p.balance}`;
+      card.querySelector('p:nth-of-type(2)')
+          .innerHTML = `<strong>Wager:</strong> $0`;
+    }
+
+    p.bets = [];
+  });
+
+  // result banner
+  let msg = `Rolled ${num}.`;
+  if (playerWinnings > 0) msg += ` You won $${playerWinnings}! 🎉`;
+  if (aiMessages.length)  msg += ` ${aiMessages.join(" | ")}`;
+  showResultMessage(msg);
+
+  balance += playerWinnings;
+  updateBalanceDisplay();
+  updatePlayerWager();
+}
+
 
   // -------------------- HELPERS --------------------
-  function getBetWinnings(bet, num) {
-    const { square, amount } = bet;
-    const label = square.innerText.toLowerCase();
-    const number = parseInt(square.innerText.trim());
-    if (!isNaN(number) && number === num) return amount * 18;
-    if (label.includes('even') && num % 2 === 0) return amount * 2;
-    if (label.includes('odd') && num % 2 !== 0) return amount * 2;
-    if (label.includes('2 thru 10') && num >= 2 && num <= 10) return amount * 2;
-    if (label.includes('12 thru 20') && num >= 12 && num <= 20) return amount * 2;
-    if (label.includes('blue') && [2,4,6,8,10,13,15,17,19].includes(num)) return amount * 2;
-    if (label.includes('white') && [3,5,7,9,12,14,16,18,20].includes(num)) return amount * 2;
-    if (label.includes('row') && isInRow(square, num)) return amount * 5;
-    if (label.includes('column') && isInColumn(square, num)) return amount * 3;
+  function getBetWinnings(bet,num){
+    const {square,amount}=bet;
+    const t=square.innerText.toLowerCase();
+    const n=+square.innerText.trim();
+    if(!isNaN(n)&&n===num) return amount*18;
+    if(t.includes('even')&&num%2===0) return amount*2;
+    if(t.includes('odd') &&num%2!==0) return amount*2;
+    if(t.includes('2 thru 10')&&num>=2&&num<=10) return amount*2;
+    if(t.includes('12 thru 20')&&num>=12&&num<=20) return amount*2;
+    if(t.includes('blue') && [2,4,6,8,10,13,15,17,19].includes(num)) return amount*2;
+    if(t.includes('white')&& [3,5,7,9,12,14,16,18,20].includes(num)) return amount*2;
+    if(t.includes('row')   && isInRow(square,num)) return amount*5;
+    if(t.includes('column')&& isInColumn(square,num)) return amount*3;
     return 0;
   }
-  function isInRow(square, num) {
-    const rowMap = {
-      'row-1': [2,3,4], 'row-2': [5,6,7], 'row-3': [8,9,10],
-      'row-4': [12,13,14], 'row-5': [15,16,17], 'row-6': [18,19,20]
-    };
-    return rowMap[square.getAttribute('data-row')]?.includes(num) || false;
+  function isInRow(sq,num){
+    const m={ 'row-1':[2,3,4], 'row-2':[5,6,7], 'row-3':[8,9,10],
+              'row-4':[12,13,14],'row-5':[15,16,17],'row-6':[18,19,20] };
+    return m[sq.getAttribute('data-row')]?.includes(num);
   }
-  function isInColumn(square, num) {
-    const colMap = {
-      'col-1': [2,5,8,12,15,18],
-      'col-2': [3,6,9,13,16,19],
-      'col-3': [4,7,10,14,17,20]
-    };
-    return colMap[square.getAttribute('data-column')]?.includes(num) || false;
+  function isInColumn(sq,num){
+    const m={ 'col-1':[2,5,8,12,15,18],
+              'col-2':[3,6,9,13,16,19],
+              'col-3':[4,7,10,14,17,20] };
+    return m[sq.getAttribute('data-column')]?.includes(num);
   }
-  function clearPreviousWinners() {
-    document.querySelectorAll('.winner-glow').forEach(el => el.classList.remove('winner-glow'));
-  }
-  function clearSimulatedBets() {
-    document.querySelectorAll('.sim-chip').forEach(chip => chip.remove());
-    simPlayers.forEach(p => p.bets = []);
+  function clearPreviousWinners(){
+    document.querySelectorAll('.winner-glow').forEach(el=>el.classList.remove('winner-glow'));
   }
 
   // -------------------- AI --------------------
-// helper to drop a sim‑chip into a square
-function createSimChip(square, amount, playerName) {
-  const chip = document.createElement('div');
-  chip.classList.add('sim-chip');
-  chip.textContent = `$${amount}`;
-  chip.style.backgroundColor = playerColors[playerName];
-  const offset = square.querySelectorAll('.sim-chip').length;
-  chip.style.top  = `${2 + offset*12}px`;
-  chip.style.left = `${2 + offset*12}px`;
-  square.appendChild(chip);
-  simPlacedChips.push(chip);
-}
+  function createSimChip(square,amount,name){
+    const chip=document.createElement('div');
+    chip.classList.add('sim-chip');
+    chip.textContent=`$${amount}`;
+    chip.style.backgroundColor=playerColors[name];
+    const off=square.querySelectorAll('.sim-chip').length;
+    chip.style.top=`${2+off*12}px`;
+    chip.style.left=`${2+off*12}px`;
+    square.appendChild(chip);
+    simPlacedChips.push(chip);
+  }
 
-function simulateFakeBets() {
-  simPlayers.forEach((player, i) => {
-    if (player.busted) return;
-    player.bets = [];
+  function simulateFakeBets(){
+    simPlayers.forEach((p,i)=>{
+      if(p.busted) return;
+      p.bets=[];
+      const squares=Array.from(document.querySelectorAll('.square'))
+                         .filter(sq=>!sq.classList.contains('no'));
+      // mandatory
+      if(p.balance>=SMALLEST_BET){
+        const sq=squares[Math.floor(Math.random()*squares.length)];
+        p.balance-=SMALLEST_BET;
+        p.bets.push({square:sq,amount:SMALLEST_BET});
+        createSimChip(sq,SMALLEST_BET,p.name);
+      }
+      // extras up to 3
+      const maxExtra=Math.min(3,Math.floor(p.balance/SMALLEST_BET));
+      const extra=Math.floor(Math.random()*(maxExtra+1));
+      for(let b=0;b<extra;b++){
+        const choices=[10,50,100,1000].filter(a=>p.balance>=a);
+        if(!choices.length) break;
+        const amt=choices[Math.floor(Math.random()*choices.length)];
+        const sq=squares[Math.floor(Math.random()*squares.length)];
+        p.balance-=amt;
+        p.bets.push({square:sq,amount:amt});
+        createSimChip(sq,amt,p.name);
+      }
+      const card=document.getElementById(`sim${i+1}`);
+      card.querySelector('p:nth-of-type(1)')
+          .innerHTML=`<strong>Balance:</strong> $${p.balance}`;
+      card.querySelector('p:nth-of-type(2)')
+          .innerHTML=`<strong>Wager:</strong> $${p.bets.reduce((s,b)=>s+b.amount,0)}`;
+    });
+  }
 
-    // gather all bet‑able squares
-    const squares = Array.from(document.querySelectorAll('.square'))
-                         .filter(sq => !sq.classList.contains('no'));
-
-    // 1) MANDATORY minimum bet if they can afford it
-    if (player.balance >= SMALLEST_BET) {
-      const sq = squares[Math.floor(Math.random() * squares.length)];
-      player.balance -= SMALLEST_BET;
-      player.bets.push({ square: sq, amount: SMALLEST_BET });
-      createSimChip(sq, SMALLEST_BET, player.name);
+  function simulateRandomAiBet(){
+    if(bettingLocked) return;
+    const active=simPlayers.map((p,i)=>p.busted?null:i).filter(i=>i!==null);
+    if(!active.length) return;
+    const idx=active[Math.floor(Math.random()*active.length)];
+    const p=simPlayers[idx];
+    const multiplier=Math.max(1,Math.floor(p.balance/gameConfig.aiStartingCash));
+    for(let i=0;i<multiplier;i++){
+      const squares=Array.from(document.querySelectorAll('.square'))
+                         .filter(sq=>!sq.classList.contains('no'));
+      const sq=squares[Math.floor(Math.random()*squares.length)];
+      const amt=[10,25,100,250,500][Math.floor(Math.random()*5)];
+      if(p.balance<amt) continue;
+      p.balance-=amt;
+      p.bets.push({square:sq,amount:amt});
+      createSimChip(sq,amt,p.name);
     }
-
-    // 2) EXTRA random bets, but never more than they can afford
-    //    and never more than 3 additional bets
-    const maxExtra = Math.min(
-      3,
-      Math.floor(player.balance / SMALLEST_BET)
-    );
-    const extraBets = Math.floor(Math.random() * (maxExtra + 1));
-    for (let b = 0; b < extraBets; b++) {
-      // pick only amounts they can afford
-      const choices = [10,50,100,1000].filter(a => player.balance >= a);
-      const amount  = choices[Math.floor(Math.random() * choices.length)];
-      if (!amount) break;
-      const sq = squares[Math.floor(Math.random() * squares.length)];
-      player.balance -= amount;
-      player.bets.push({ square: sq, amount });
-      createSimChip(sq, amount, player.name);
-    }
-
-    // 3) Update their card
-    const card = document.getElementById(`sim${i+1}`);
+    const card=document.getElementById(`sim${idx+1}`);
     card.querySelector('p:nth-of-type(1)')
-        .innerHTML = `<strong>Balance:</strong> $${player.balance}`;
+        .innerHTML=`<strong>Balance:</strong> $${p.balance}`;
     card.querySelector('p:nth-of-type(2)')
-        .innerHTML = `<strong>Wager:</strong> $${player.bets.reduce((sum, b) => sum + b.amount, 0)}`;
-  });
-}
-
-
-	function simulateRandomAiBet() {
-	  if (bettingLocked) return;
-	  // pick an active AI
-	  const active = simPlayers.map((p,i) => p.busted? null : i).filter(i => i!==null);
-	  if (!active.length) return;
-	  const idx    = active[Math.floor(Math.random() * active.length)];
-	  const player = simPlayers[idx];
-
-	  // scale up how many mini‑bets they fire
-	  const multiplier = Math.max(
-		1,
-		Math.floor(player.balance / gameConfig.aiStartingCash)
-	  );
-	  for (let i = 0; i < multiplier; i++) {
-		// ...exactly the same one‑bet logic you already have:
-		const squares = Array.from(document.querySelectorAll('.square'))
-		  .filter(sq => !sq.classList.contains('no'));
-		const square = squares[Math.floor(Math.random()*squares.length)];
-		const amount = [10,25,100,250,500][Math.floor(Math.random()*5)];
-		if (player.balance < amount) continue;
-		player.balance -= amount;
-		player.bets.push({ square, amount });
-		const chip = document.createElement('div');
-		chip.classList.add('sim-chip');
-		chip.textContent = `$${amount}`;
-		chip.style.backgroundColor = playerColors[player.name];
-		const off = square.querySelectorAll('.sim-chip').length;
-		chip.style.top  = `${2 + off*12}px`;
-		chip.style.left = `${2 + off*12}px`;
-		square.appendChild(chip);
-		simPlacedChips.push(chip);
-	  }
-
-	  // update that AI's card
-	  const card = document.getElementById(`sim${idx+1}`);
-	  card.querySelector('p:nth-of-type(1)')
-		  .innerHTML = `<strong>Balance:</strong> $${player.balance}`;
-	  card.querySelector('p:nth-of-type(2)')
-		  .innerHTML = `<strong>Wager:</strong> $${player.bets.reduce((s,b)=>s+b.amount,0)}`;
-	}
-
+        .innerHTML=`<strong>Wager:</strong> $${p.bets.reduce((s,b)=>s+b.amount,0)}`;
+  }
 
   // -------------------- SETUP SIM PLAYERS --------------------
-  function generateSimPlayers() {
-    const names = ["Luna","Blaze","Ace","Rogue","Nova","Jet"];
-    const used = new Set();
-    for (let i = 1; i <= 3; i++) {
+  function generateSimPlayers(){
+    const names=["Luna","Blaze","Ace","Rogue","Nova","Jet"];
+    const used=new Set();
+    for(let i=1;i<=3;i++){
       let name;
-      do { name = names[Math.floor(Math.random() * names.length)]; }
-      while (used.has(name));
+      do{name=names[Math.floor(Math.random()*names.length)];}
+      while(used.has(name));
       used.add(name);
-      const initBal = gameConfig.aiStartingCash;
-      simPlayers.push({ name, balance: initBal, bets: [], busted: false });
-      const card = document.getElementById(`sim${i}`);
-      card.innerHTML = `
+      simPlayers.push({name, balance:gameConfig.aiStartingCash, bets:[], busted:false});
+      const card=document.getElementById(`sim${i}`);
+      card.innerHTML=`
         <h3 style="color:${playerColors[name]}">${name}</h3>
-        <p><strong>Balance:</strong> $${initBal}</p>
+        <p><strong>Balance:</strong> $${gameConfig.aiStartingCash}</p>
         <p><strong>Wager:</strong> $0</p>
       `;
     }
@@ -809,93 +795,92 @@ function simulateFakeBets() {
   }
 
   // -------------------- END‑OF‑GAME LOGIC --------------------
-	function checkEndConditions() {
-	  // --- Race mode win/lose by hitting target ---
-	  if (gameConfig.mode === 'race') {
-		// player hits target?
-		if (balance >= gameConfig.raceTarget) {
-		  alert(`🎉 You reached $${gameConfig.raceTarget}! You win the race!`);
-		  restartGame();
-		  return;
-		}
-		// any AI hits target?
-		const aiWinner = simPlayers.find(p => p.balance >= gameConfig.raceTarget);
-		if (aiWinner) {
-		  alert(`💀 ${aiWinner.name} reached $${gameConfig.raceTarget}. You lose the race.`);
-		  restartGame();
-		  return;
-		}
-		// otherwise keep going
-		return;
-	  }
+  function checkEndConditions(){
+    // bust AIs
+    simPlayers.forEach((p,i)=>{
+      if(!p.busted && p.balance<=SMALLEST_BET && p.bets.length===0){
+        p.busted=true;
+        const card=document.getElementById(`sim${i+1}`);
+        card.querySelector('p:nth-of-type(1)')
+            .innerHTML=`<strong>Balance:</strong> BUSTED`;
+      }
+    });
+    // race mode
+    if(gameConfig.mode==='race'){
+      if(balance>=gameConfig.raceTarget){
+        alert(`🎉 You reached $${gameConfig.raceTarget}! You win the race!`);
+        restartGame(); return;
+      }
+      const w=simPlayers.find(p=>p.balance>=gameConfig.raceTarget);
+      if(w){
+        alert(`💀 ${w.name} reached $${gameConfig.raceTarget}. You lose the race.`);
+        restartGame(); return;
+      }
+      return;
+    }
+    // survival mode
+    if(simPlayers.every(p=>p.busted)){
+      if(!keepPlayingSolo){
+        if(confirm('🎉 All AI have busted! You win!\n\nOK=Restart, Cancel=Keep playing')){
+          restartGame();
+        } else {
+          keepPlayingSolo=true;
+        }
+      }
+      return;
+    }
+    // player bust
+    if(balance<=SMALLEST_BET && placedBets.size===0){
+      alert('💀 No more funds & no bets. Game over!');
+      restartGame();
+    }
+  }
 
-	  // --- Survival mode: original “bust” checks ---
-	  // mark busted AIs
-	  simPlayers.forEach((p, i) => {
-		if (!p.busted && p.balance <= SMALLEST_BET && p.bets.length === 0) {
-		  p.busted = true;
-		  const card = document.getElementById(`sim${i+1}`);
-		  card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> BUSTED`;
-		}
-	  });
-	  // player win if all AIs busted
-	  if (simPlayers.every(p => p.busted)) {
-		if (confirm(
-		  '🎉 All AI have busted! You win!\n\n' +
-		  'OK = Restart the game\n' +
-		  'Cancel = Keep playing solo'
-		)) {
-		  restartGame();
-		}
-		return;
-	  }
-	  // player bust
-	  if (balance <= SMALLEST_BET && placedBets.size === 0) {
-		alert('💀 You have no more funds and no active bets. Game over!');
-		restartGame();
-	  }
-	}
-
+  function restartGame(){
+    startGame();
+  }
 
   // -------------------- CONTEXT MENU --------------------
-  document.querySelectorAll('.square').forEach(square => {
-    square.addEventListener('contextmenu', e => {
+  document.querySelectorAll('.square').forEach(sq=>{
+    sq.addEventListener('contextmenu',e=>{
       e.preventDefault();
-      if (square.classList.contains('no')) return;
-      if (bettingLocked) showLockedBetMenu(e.pageX, e.pageY);
+      if(sq.classList.contains('no')) return;
+      if(bettingLocked) showLockedBetMenu(e.pageX,e.pageY);
       else {
-        selectedSquare = square;
-        showBetMenu(e.pageX, e.pageY);
+        selectedSquare=sq;
+        showBetMenu(e.pageX,e.pageY);
       }
     });
   });
-  function showBetMenu(x, y) {
-    betMenu.innerHTML = `
+
+  function showBetMenu(x,y){
+    betMenu.innerHTML=`
       <div data-amount="10">Bet 10</div>
       <div data-amount="50">Bet 50</div>
       <div data-amount="100">Bet 100</div>
       <div data-amount="1000">Bet 1000</div>`;
-    betMenu.style.top = y + 'px';
-    betMenu.style.left = x + 'px';
-    betMenu.style.display = 'block';
+    betMenu.style.top=y+'px';
+    betMenu.style.left=x+'px';
+    betMenu.style.display='block';
   }
-  function showLockedBetMenu(x, y) {
-    betMenu.innerHTML = `<div style="color:grey;cursor:not-allowed;">Bets Closed</div>`;
-    betMenu.style.top = y + 'px';
-    betMenu.style.left = x + 'px';
-    betMenu.style.display = 'block';
+  function showLockedBetMenu(x,y){
+    betMenu.innerHTML=`<div style="color:grey;cursor:not-allowed;">Bets Closed</div>`;
+    betMenu.style.top=y+'px';
+    betMenu.style.left=x+'px';
+    betMenu.style.display='block';
   }
-  document.addEventListener('click', e => {
-    if (!betMenu.contains(e.target)) betMenu.style.display = 'none';
+
+  document.addEventListener('click',e=>{
+    if(!betMenu.contains(e.target)) betMenu.style.display='none';
   });
-  betMenu.addEventListener('click', e => {
-    if (bettingLocked) return;
-    const opt = e.target.closest('[data-amount]');
-    if (!opt || !selectedSquare) return;
-    placeBet(selectedSquare, parseInt(opt.dataset.amount));
-    betMenu.style.display = 'none';
+  betMenu.addEventListener('click',e=>{
+    if(bettingLocked) return;
+    const opt=e.target.closest('[data-amount]');
+    if(!opt||!selectedSquare) return;
+    placeBet(selectedSquare,parseInt(opt.dataset.amount,10));
+    betMenu.style.display='none';
   });
-  clearBtn.addEventListener('click', clearBetsAndRefund);
+  clearBtn.addEventListener('click',clearBetsAndRefund);
 </script>
 </body>
 </html>
