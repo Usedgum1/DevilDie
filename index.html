@@ -687,42 +687,63 @@
   }
 
   // -------------------- AI --------------------
-  function simulateFakeBets() {
-    simPlayers.forEach((player, i) => {
-      if (player.busted) return;
-      player.bets = [];
-	  // figure out how many "starting stacks" they have
-	  const multiplier = Math.max(
-		1,
-		Math.floor(player.balance / gameConfig.aiStartingCash)
-	  );
-	  // 1–3 “base” bets, then scale by that multiplier
-	  const baseBets = Math.floor(Math.random() * 3) + 1;
-	  const bets     = baseBets * multiplier;
+// helper to drop a sim‑chip into a square
+function createSimChip(square, amount, playerName) {
+  const chip = document.createElement('div');
+  chip.classList.add('sim-chip');
+  chip.textContent = `$${amount}`;
+  chip.style.backgroundColor = playerColors[playerName];
+  const offset = square.querySelectorAll('.sim-chip').length;
+  chip.style.top  = `${2 + offset*12}px`;
+  chip.style.left = `${2 + offset*12}px`;
+  square.appendChild(chip);
+  simPlacedChips.push(chip);
+}
 
-      const squares = Array.from(document.querySelectorAll('.square'))
-        .filter(sq => !sq.classList.contains('no'));
-      for (let b = 0; b < bets; b++) {
-        const square = squares[Math.floor(Math.random() * squares.length)];
-        const amount = [10,50,100,1000][Math.floor(Math.random() * 4)];
-        if (player.balance < amount) continue;
-        player.balance -= amount;
-        player.bets.push({ square, amount });
-        const chip = document.createElement('div');
-        chip.classList.add('sim-chip');
-        chip.textContent = `$${amount}`;
-        chip.style.backgroundColor = playerColors[player.name];
-        const off = square.querySelectorAll('.sim-chip').length;
-        chip.style.top = `${2 + off*12}px`;
-        chip.style.left= `${2 + off*12}px`;
-        square.appendChild(chip);
-        simPlacedChips.push(chip);
-      }
-      const card = document.getElementById(`sim${i+1}`);
-      card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> $${player.balance}`;
-      card.querySelector('p:nth-of-type(2)').innerHTML = `<strong>Wager:</strong> $0`;
-    });
-  }
+function simulateFakeBets() {
+  simPlayers.forEach((player, i) => {
+    if (player.busted) return;
+    player.bets = [];
+
+    // gather all bet‑able squares
+    const squares = Array.from(document.querySelectorAll('.square'))
+                         .filter(sq => !sq.classList.contains('no'));
+
+    // 1) MANDATORY minimum bet if they can afford it
+    if (player.balance >= SMALLEST_BET) {
+      const sq = squares[Math.floor(Math.random() * squares.length)];
+      player.balance -= SMALLEST_BET;
+      player.bets.push({ square: sq, amount: SMALLEST_BET });
+      createSimChip(sq, SMALLEST_BET, player.name);
+    }
+
+    // 2) EXTRA random bets, but never more than they can afford
+    //    and never more than 3 additional bets
+    const maxExtra = Math.min(
+      3,
+      Math.floor(player.balance / SMALLEST_BET)
+    );
+    const extraBets = Math.floor(Math.random() * (maxExtra + 1));
+    for (let b = 0; b < extraBets; b++) {
+      // pick only amounts they can afford
+      const choices = [10,50,100,1000].filter(a => player.balance >= a);
+      const amount  = choices[Math.floor(Math.random() * choices.length)];
+      if (!amount) break;
+      const sq = squares[Math.floor(Math.random() * squares.length)];
+      player.balance -= amount;
+      player.bets.push({ square: sq, amount });
+      createSimChip(sq, amount, player.name);
+    }
+
+    // 3) Update their card
+    const card = document.getElementById(`sim${i+1}`);
+    card.querySelector('p:nth-of-type(1)')
+        .innerHTML = `<strong>Balance:</strong> $${player.balance}`;
+    card.querySelector('p:nth-of-type(2)')
+        .innerHTML = `<strong>Wager:</strong> $${player.bets.reduce((sum, b) => sum + b.amount, 0)}`;
+  });
+}
+
 
 	function simulateRandomAiBet() {
 	  if (bettingLocked) return;
