@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Devil Die Roulette</title>
+  <style>
+    @import url('https://fonts.cdnfonts.com/css/daytona');
+
+    body {
+      font-family: 'Daytona', Arial, sans-serif;
+      user-select: none;
+      text-align: center;
+      background-color: #444;
+      color: white;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 120px);
+      gap: 2px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+
+    .square {
+      height: 60px;
+      border: 1px solid black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px;
+      font-weight: bold;
+      font-size: 14px;
+      text-align: center;
+      position: relative;
+    }
+
+    .grey { background-color: grey; }
+    .blue { background-color: blue; }
+    .red { background-color: darkred; }
+    .white { background-color: white; color: black; }
+    .label { font-size: 12px; }
+    .edge-bar { grid-column: 1 / span 5; background-color: #555; font-size: 11px; padding: 5px; }
+
+    /* Roller Box Styling */
+    #roller {
+      font-size: 2rem;
+      color: white;
+      font-weight: bold;
+      text-shadow: 2px 2px #000;
+      transition: transform 0.3s ease;
+    }
+    @keyframes pop {
+      0%   { transform: scale(1.1); }
+      50%  { transform: scale(1.4); }
+      100% { transform: scale(1); }
+    }
+    #roller.pop {
+      animation: pop 0.3s ease;
+    }
+
+    /* Betting Styles */
+    #balance {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-top: 10px;
+      color: #0f0;
+    }
+    .bet-marker {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      font-size: 0.9rem;
+      background: rgba(255,255,255,0.8);
+      color: #000;
+      padding: 2px 4px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* Custom context menu */
+    #betMenu {
+      position: absolute;
+      display: none;
+      background-color: #222;
+      border: 1px solid #555;
+      color: white;
+      z-index: 1000;
+      font-size: 14px;
+      padding: 5px;
+      border-radius: 4px;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    }
+    #betMenu div { padding: 5px 10px; cursor: pointer; }
+    #betMenu div:hover { background-color: #444; }
+
+    /* Players */
+    .players {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 10px;
+      position: absolute;
+      left: 300px;
+      top: 100px;
+    }
+    .player-card {
+      background-color: #222;
+      border: 2px solid #888;
+      border-radius: 8px;
+      padding: 10px 15px;
+      color: white;
+      width: 150px;
+      margin: 10px;
+      box-shadow: 0 0 10px #000;
+    }
+    .player-card h3 {
+      margin: 0 0 10px 0;
+      color: #ffd700;
+      font-size: 18px;
+    }
+
+    .bet-marker,
+    .sim-chip {
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow:
+        0 0 3px rgba(0, 0, 0, 0.4),
+        inset 0 0 6px rgba(255, 255, 255, 0.5),
+        inset 0 0 10px rgba(0, 0, 0, 0.2);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-align: center;
+      line-height: 36px;
+      pointer-events: none;
+      animation: chip-in 0.4s ease-out forwards;
+      background-color: currentColor;
+      color: #000;
+    }
+    @keyframes chip-in {
+      from { opacity: 0; transform: scale(0.5); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    #countdown {
+      font-size: 2rem;
+      color: black;
+      font-weight: bold;
+      text-shadow: 1px 1px #aaa;
+      transition: transform 0.3s ease;
+    }
+
+    .winner-glow {
+      box-shadow: 0 0 30px 6px rgba(0, 0, 0, 0.4);
+      z-index: 1;
+      animation: glowPulse 1s ease-out infinite alternate;
+    }
+    @keyframes glowPulse {
+      0% { box-shadow: 0 0 4px 2px rgba(0, 0, 0, 0.2); }
+      50% { box-shadow: 0 0 14px 8px rgba(0, 0, 0, 0.5); }
+      100% { box-shadow: 0 0 4px 2px rgba(0, 0, 0, 0.2); }
+    }
+
+    .no {
+      pointer-events: none;
+      background-color: #aaa;
+      color: #aaa;
+    }
+
+    @keyframes chip-win-bounce {
+      0%   { transform: scale(1); }
+      25%  { transform: scale(1.3) translateY(-4px); }
+      50%  { transform: scale(1.1) translateY(2px); }
+      75%  { transform: scale(1.2) translateY(-1px); }
+      100% { transform: scale(1); }
+    }
+    .sim-chip.win,
+    .bet-marker.win {
+      animation: chip-win-bounce 0.6s ease-out forwards;
+      box-shadow: 0 0 6px 2px gold;
+      z-index: 2;
+      opacity: 1 !important;
+    }
+
+    @keyframes flashResult {
+      0%   { opacity: 1; }
+      50%  { opacity: 0.2; }
+      100% { opacity: 1; }
+    }
+
+    .clear-btn-cell {
+      background-color: #222;
+      border: 2px solid #555;
+    }
+    #clearBtn {
+      width: 100%;
+      height: 100%;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      background: linear-gradient(to bottom, #ff3b3f, #cc1f24);
+      color: white;
+      cursor: pointer;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(255, 59, 63, 0.5);
+      transition: all 0.2s ease;
+    }
+    #clearBtn:hover {
+      background: linear-gradient(to bottom, #ff5e62, #cc1f24);
+      box-shadow: 0 0 15px rgba(255, 100, 105, 0.7);
+      transform: scale(1.05);
+    }
+    #clearBtn:active {
+      transform: scale(0.97);
+      box-shadow: 0 0 6px rgba(255, 59, 63, 0.6);
+    }
+    #clearBtn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    #statusLabel {
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    /* mode‑selector overlay */
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+    }
+    .modal {
+      background: #fff; color: #000;
+      padding: 2rem; border-radius: 8px;
+      text-align: center; max-width: 90%; width: 300px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .modal h2 { margin-bottom: 0.5em; }
+    .modal .modes label { margin: 0 1em; }
+    .modal input[type="number"] { width: 6em; }
+  </style>
+</head>
+<body>
+
+  <!-- mode selector overlay -->
+  <div id="mode-selector" class="overlay">
+    <div class="modal">
+      <h2>Welcome to Devil Die</h2>
+      <p>Which game mode would you like to play?</p>
+      <div class="modes">
+        <label><input type="radio" name="mode" value="survival" checked> Survival</label>
+        <label><input type="radio" name="mode" value="race"> Race</label>
+      </div>
+      <div id="race-settings" style="display:none;margin-top:1em;">
+        <label>First to $ <input type="number" id="race-target" value="50000"></label>
+      </div>
+      <div style="margin-top:1em;">
+        <label>You start with $ <input type="number" id="player-start" value="5000"></label><br>
+        <label>Each AI starts with $ <input type="number" id="ai-start" value="5000"></label>
+      </div>
+      <button id="start-btn" style="margin-top:1em;">Start Game</button>
+    </div>
+  </div>
+
+  <!-- custom bet menu -->
+  <div id="betMenu">
+    <div data-amount="10">Bet 10</div>
+    <div data-amount="50">Bet 50</div>
+    <div data-amount="100">Bet 100</div>
+    <div data-amount="1000">Bet 1000</div>
+  </div>
+
+  <div style="display: flex; justify-content: flex-start; align-items: flex-start;">
+    <div class="players">
+      <div class="player-card" id="player">
+        <h3>Player</h3>
+        <p><strong>Balance:</strong> <span id="playerBalance">$5000</span></p>
+        <p><strong>Wager:</strong> <span id="playerWager">$0</span></p>
+      </div>
+      <div class="player-card" id="sim1"></div>
+      <div class="player-card" id="sim2"></div>
+      <div class="player-card" id="sim3"></div>
+    </div>
+    <div class="board">
+      <div class="edge-bar">Devil Die</div>
+      <div class="square grey label">2 thru 10 1:1</div>
+      <div class="square grey label column-bet" data-column="col-1">Column 3:1</div>
+      <div class="square grey label column-bet" data-column="col-2">
+        Column 3:1<br><span style="color:red;"><s>1,11</s></span>
+      </div>
+      <div class="square grey label column-bet" data-column="col-3">Column 3:1</div>
+      <div class="square grey label">12 thru 20 1:1</div>
+
+      <div class="square grey label row-bet" data-row="row-1">Row 5:1</div>
+      <div class="square blue">2</div>
+      <div class="square white">3</div>
+      <div class="square blue">4</div>
+      <div class="square grey label row-bet" data-row="row-1">Row 5:1</div>
+
+      <div class="square grey label row-bet" data-row="row-2">Row 5:1</div>
+      <div class="square white">5</div>
+      <div class="square blue">6</div>
+      <div class="square white">7</div>
+      <div class="square grey label row-bet" data-row="row-2">Row 5:1</div>
+
+      <div class="square grey label row-bet" data-row="row-3">Row 5:1</div>
+      <div class="square blue">8</div>
+      <div class="square white">9</div>
+      <div class="square blue">10</div>
+      <div class="square grey label row-bet" data-row="row-3">Row 5:1</div>
+
+      <div class="square grey label">Even 1:1</div>
+      <div class="square no bet"><div id="roller">0</div></div>
+      <div class="square red">1</div>
+      <div class="square no bet" id="countdown">15</div>
+      <div class="square grey label">Blue 1:1</div>
+
+      <div class="square grey label">Odd 1:1</div>
+      <div class="square no bet">
+        <div id="statusLabel" style="margin-top:5px;font-weight:bold;">Bets Open</div>
+      </div>
+      <div class="square red">11</div>
+      <div class="square no" data-action="system">
+        <button id="clearBtn" style="pointer-events:auto;">Clear My Bets</button>
+      </div>
+      <div class="square grey label">White 1:1</div>
+
+      <div class="square grey label row-bet" data-row="row-4">Row 5:1</div>
+      <div class="square white">12</div>
+      <div class="square blue">13</div>
+      <div class="square white">14</div>
+      <div class="square grey label row-bet" data-row="row-4">Row 5:1</div>
+
+      <div class="square grey label row-bet" data-row="row-5">Row 5:1</div>
+      <div class="square blue">15</div>
+      <div class="square white">16</div>
+      <div class="square blue">17</div>
+      <div class="square grey label row-bet" data-row="row-5">Row 5:1</div>
+
+      <div class="square grey label row-bet" data-row="row-6">Row 5:1</div>
+      <div class="square white">18</div>
+      <div class="square blue">19</div>
+      <div class="square white">20</div>
+      <div class="square grey label row-bet" data-row="row-6">Row 5:1</div>
+
+      <div class="square grey label">2 thru 10 1:1</div>
+      <div class="square grey label column-bet" data-column="col-1">Column 3:1</div>
+      <div class="square grey label column-bet" data-column="col-2">
+        Column 3:1<br><span style="color:red;"><s>1,11</s></span>
+      </div>
+      <div class="square grey label column-bet" data-column="col-3">Column 3:1</div>
+      <div class="square grey label">12 thru 20 1:1</div>
+
+      <div class="edge-bar" id="resultBar">Devil Die</div>
+    </div>
+  </div>
+
+<script>
+  // -------------------- CONFIG --------------------
+  const SMALLEST_BET = 10;
+
+  let countdownTimer = 25;
+  let countdownInterval;
+  let bettingLocked = false;
+  let balance = 5000;
+  let selectedSquare = null;
+  const placedBets = new Map();
+  const simPlayers = [];
+  const simPlacedChips = [];
+  const playerColors = {
+    Player: 'Yellow',
+    Luna: '#FFA500',
+    Blaze: '#800000',
+    Ace: '#008000',
+    Rogue: '#FF00FF',
+    Nova: '#00FF00',
+    Jet: '#FF0000'
+  };
+
+  // global configuration object
+  const gameConfig = {
+    mode: 'survival',         // "survival" or "race"
+    startingCash: 5000,
+    aiStartingCash: 5000,
+    raceTarget: 50000
+  };
+
+  // -------------------- MODE MENU --------------------
+  function showModeMenu() {
+    const overlay = document.getElementById('mode-selector');
+    const raceSettings = document.getElementById('race-settings');
+    overlay.style.display = 'flex';
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener('change', e => {
+        raceSettings.style.display = e.target.value === 'race' ? 'block' : 'none';
+      });
+    });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      gameConfig.mode            = document.querySelector('input[name="mode"]:checked').value;
+      gameConfig.raceTarget      = parseInt(document.getElementById('race-target').value, 10);
+      gameConfig.startingCash    = parseInt(document.getElementById('player-start').value, 10);
+      gameConfig.aiStartingCash  = parseInt(document.getElementById('ai-start').value, 10);
+      document.getElementById('mode-selector').style.display = 'none';
+      startGame();
+    });
+  }
+  window.addEventListener('load', showModeMenu);
+
+  // -------------------- START GAME --------------------
+  function startGame() {
+    balance = gameConfig.startingCash;
+    placedBets.clear();
+    simPlayers.length = 0;
+    updateBalanceDisplay();
+    updatePlayerWager();
+    generateSimPlayers();
+    document.querySelector('#player h3').style.color = playerColors["Player"];
+    startCountdownLoop();
+  }
+
+  // -------------------- DOM REFERENCES --------------------
+  const roller        = document.getElementById('roller');
+  const clearBtn      = document.getElementById('clearBtn');
+  const betMenu       = document.getElementById('betMenu');
+  const balanceDisplay= document.getElementById('playerBalance');
+  const wagerDisplay  = document.getElementById('playerWager');
+
+  // -------------------- COUNTDOWN --------------------
+  function startCountdownLoop(delayStart = 0) {
+    const display = document.getElementById('countdown');
+    setTimeout(() => {
+      countdownTimer = 25;
+      display.textContent = countdownTimer;
+      display.style.fontSize = '2rem';
+      display.style.color = 'black';
+      setStatus("Bets Open", "#0f0");
+      enableBetting();
+      countdownInterval = setInterval(() => {
+        countdownTimer--;
+        display.textContent = countdownTimer;
+        if (countdownTimer <= 20 && countdownTimer > 10 && Math.random() < 0.4) simulateRandomAiBet();
+        if (countdownTimer <= 10 && countdownTimer > 5 && Math.random() < 0.7) simulateRandomAiBet();
+        if (countdownTimer === 10) setStatus("Bets Closing Soon", "#FFD700");
+        if (countdownTimer === 5) {
+          setStatus("Bets Closed", "#f44");
+          disableBetting();
+        }
+        if (countdownTimer <= 0) {
+          clearInterval(countdownInterval);
+          display.textContent = 'Resetting';
+          setStatus("Awaiting Results", "#0f0");
+          display.style.fontSize = '1rem';
+          display.style.color = '#fff';
+          const finalRoll = Math.floor(Math.random() * 20) + 1;
+			rollNumber(finalRoll, () => {
+			  setTimeout(() => {
+				clearSimulatedChipsByState('loser');
+				setTimeout(() => {
+				  clearSimulatedChipsByState('winner');
+
+				  // ←── right here, after everyone’s bets are cleared:
+				  checkEndConditions();
+
+				  setTimeout(() => {
+					simulateFakeBets();
+					display.style.fontSize = '1rem';
+					display.style.color = 'black';
+					startCountdownLoop(0);
+				  }, 2000);
+				}, 4000);
+			  }, 4000);
+			});
+        }
+      }, 1000);
+    }, delayStart);
+  }
+
+  // -------------------- GAME STATE --------------------
+  function enableBetting() {
+    bettingLocked = false;
+    updateClearButtonState();
+  }
+  function disableBetting() {
+    bettingLocked = true;
+    updateClearButtonState();
+    betMenu.style.display = 'none';
+  }
+  function setStatus(msg, color) {
+    const label = document.getElementById('statusLabel');
+    label.textContent = msg;
+    label.style.color = color || '#fff';
+  }
+  function updateClearButtonState() {
+    clearBtn.disabled = bettingLocked;
+    clearBtn.style.opacity = bettingLocked ? '0.5' : '1';
+    clearBtn.style.cursor  = bettingLocked ? 'not-allowed' : 'pointer';
+  }
+
+  // -------------------- UI UPDATES --------------------
+  function updateBalanceDisplay() {
+    balanceDisplay.textContent = `$${balance}`;
+  }
+  function updatePlayerWager() {
+    let total = 0;
+    placedBets.forEach(val => total += val);
+    wagerDisplay.textContent = `$${total}`;
+  }
+  function showResultMessage(msg) {
+    const bar = document.getElementById('resultBar');
+    bar.textContent = msg;
+    bar.style.color = '#FFD700';
+    bar.style.animation = 'flashResult 1s ease';
+    setTimeout(() => bar.style.animation = '', 1000);
+  }
+
+  // -------------------- BETTING --------------------
+  function placeBet(square, amount) {
+    if (bettingLocked || !square || square.classList.contains('no')) return;
+    if (balance < amount) return alert("Not enough balance!");
+    const current = placedBets.get(square) || 0;
+    balance -= amount;
+    placedBets.set(square, current + amount);
+    updateBalanceDisplay();
+    updatePlayerWager();
+    let marker = square.querySelector('.bet-marker');
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.classList.add('bet-marker');
+      marker.style.backgroundColor = playerColors["Player"];
+      square.appendChild(marker);
+    }
+    marker.textContent = `$${placedBets.get(square)}`;
+  }
+  function clearBetsAndRefund() {
+    placedBets.forEach((amt, square) => {
+      const marker = square.querySelector('.bet-marker');
+      if (marker) marker.remove();
+      balance += amt;
+    });
+    placedBets.clear();
+    updateBalanceDisplay();
+    updatePlayerWager();
+  }
+  function clearSimulatedChipsByState(state) {
+    document.querySelectorAll('.sim-chip, .bet-marker').forEach(chip => {
+      const isWin = chip.dataset.keep === 'true';
+      const square = chip.closest('.square');
+      if ((state === 'winner' && isWin) || (state === 'loser' && !isWin)) {
+        chip.remove();
+        if (chip.classList.contains('bet-marker')) placedBets.delete(square);
+      }
+    });
+    updatePlayerWager();
+  }
+
+  // -------------------- ROLLING --------------------
+  function rollNumber(finalNumber, onComplete) {
+    let delay = 40;
+    let maxDelay = 400;
+    function animate() {
+      const roll = Math.floor(Math.random() * 20) + 1;
+      roller.textContent = roll;
+      delay = Math.min(delay + 30, maxDelay);
+      if (delay >= maxDelay) {
+        roller.textContent = finalNumber;
+        roller.classList.add("pop");
+        setTimeout(() => {
+          roller.classList.remove("pop");
+          clearPreviousWinners();
+          evaluateBets(finalNumber);
+          if (typeof onComplete === "function") onComplete();
+        }, 350);
+      } else {
+        setTimeout(animate, delay);
+      }
+    }
+    animate();
+  }
+
+  // -------------------- WINNING --------------------
+  function evaluateBets(num) {
+    let playerWinnings = 0;
+    let aiMessages = [];
+    clearPreviousWinners();
+    let rolledSquare = null;
+    document.querySelectorAll('.square').forEach(square => {
+      const text = square.innerText.trim();
+      if (/^\d+$/.test(text) && parseInt(text) === num && !square.querySelector('#roller')) {
+        square.classList.add('winner-glow');
+        rolledSquare = square;
+      }
+    });
+    // Player
+    placedBets.forEach((amt, square) => {
+      const winnings = getBetWinnings({ square, amount: amt }, num);
+      if (winnings > 0) {
+        playerWinnings += winnings;
+        const marker = square.querySelector('.bet-marker');
+        marker.classList.remove('win'); void marker.offsetWidth; marker.classList.add('win');
+        marker.dataset.keep = 'true';
+      }
+      if (square === rolledSquare) square.classList.add('winner-glow');
+    });
+    // AI
+    simPlayers.forEach((p, i) => {
+      let totalWon = 0;
+      p.bets?.forEach(bet => {
+        const winnings = getBetWinnings(bet, num);
+        totalWon += winnings;
+        if (winnings > 0) {
+          bet.square.querySelectorAll('.sim-chip').forEach(chip => {
+            setTimeout(() => {
+              chip.classList.remove('win'); void chip.offsetWidth; chip.classList.add('win');
+              chip.dataset.keep = 'true';
+            }, 50);
+          });
+        }
+        if (bet.square === rolledSquare) bet.square.classList.add('winner-glow');
+      });
+      p.balance += totalWon;
+      if (totalWon > 0) aiMessages.push(`${p.name} won $${totalWon}`);
+      const card = document.getElementById(`sim${i+1}`);
+      card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> $${p.balance}`;
+      card.querySelector('p:nth-of-type(2)').innerHTML = `<strong>Wager:</strong> $0`;
+      p.bets = [];
+    });
+    let msg = `Rolled ${num}.`;
+    if (playerWinnings > 0) msg += ` You won $${playerWinnings}! 🎉`;
+    if (aiMessages.length) msg += ` ${aiMessages.join(" | ")}`;
+    showResultMessage(msg);
+    balance += playerWinnings;
+    updateBalanceDisplay();
+    updatePlayerWager();
+    checkEndConditions();
+  }
+
+  // -------------------- HELPERS --------------------
+  function getBetWinnings(bet, num) {
+    const { square, amount } = bet;
+    const label = square.innerText.toLowerCase();
+    const number = parseInt(square.innerText.trim());
+    if (!isNaN(number) && number === num) return amount * 18;
+    if (label.includes('even') && num % 2 === 0) return amount * 2;
+    if (label.includes('odd') && num % 2 !== 0) return amount * 2;
+    if (label.includes('2 thru 10') && num >= 2 && num <= 10) return amount * 2;
+    if (label.includes('12 thru 20') && num >= 12 && num <= 20) return amount * 2;
+    if (label.includes('blue') && [2,4,6,8,10,13,15,17,19].includes(num)) return amount * 2;
+    if (label.includes('white') && [3,5,7,9,12,14,16,18,20].includes(num)) return amount * 2;
+    if (label.includes('row') && isInRow(square, num)) return amount * 5;
+    if (label.includes('column') && isInColumn(square, num)) return amount * 3;
+    return 0;
+  }
+  function isInRow(square, num) {
+    const rowMap = {
+      'row-1': [2,3,4], 'row-2': [5,6,7], 'row-3': [8,9,10],
+      'row-4': [12,13,14], 'row-5': [15,16,17], 'row-6': [18,19,20]
+    };
+    return rowMap[square.getAttribute('data-row')]?.includes(num) || false;
+  }
+  function isInColumn(square, num) {
+    const colMap = {
+      'col-1': [2,5,8,12,15,18],
+      'col-2': [3,6,9,13,16,19],
+      'col-3': [4,7,10,14,17,20]
+    };
+    return colMap[square.getAttribute('data-column')]?.includes(num) || false;
+  }
+  function clearPreviousWinners() {
+    document.querySelectorAll('.winner-glow').forEach(el => el.classList.remove('winner-glow'));
+  }
+  function clearSimulatedBets() {
+    document.querySelectorAll('.sim-chip').forEach(chip => chip.remove());
+    simPlayers.forEach(p => p.bets = []);
+  }
+
+  // -------------------- AI --------------------
+  function simulateFakeBets() {
+    simPlayers.forEach((player, i) => {
+      if (player.busted) return;
+      player.bets = [];
+	  // figure out how many "starting stacks" they have
+	  const multiplier = Math.max(
+		1,
+		Math.floor(player.balance / gameConfig.aiStartingCash)
+	  );
+	  // 1–3 “base” bets, then scale by that multiplier
+	  const baseBets = Math.floor(Math.random() * 3) + 1;
+	  const bets     = baseBets * multiplier;
+
+      const squares = Array.from(document.querySelectorAll('.square'))
+        .filter(sq => !sq.classList.contains('no'));
+      for (let b = 0; b < bets; b++) {
+        const square = squares[Math.floor(Math.random() * squares.length)];
+        const amount = [10,50,100,1000][Math.floor(Math.random() * 4)];
+        if (player.balance < amount) continue;
+        player.balance -= amount;
+        player.bets.push({ square, amount });
+        const chip = document.createElement('div');
+        chip.classList.add('sim-chip');
+        chip.textContent = `$${amount}`;
+        chip.style.backgroundColor = playerColors[player.name];
+        const off = square.querySelectorAll('.sim-chip').length;
+        chip.style.top = `${2 + off*12}px`;
+        chip.style.left= `${2 + off*12}px`;
+        square.appendChild(chip);
+        simPlacedChips.push(chip);
+      }
+      const card = document.getElementById(`sim${i+1}`);
+      card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> $${player.balance}`;
+      card.querySelector('p:nth-of-type(2)').innerHTML = `<strong>Wager:</strong> $0`;
+    });
+  }
+
+	function simulateRandomAiBet() {
+	  if (bettingLocked) return;
+	  // pick an active AI
+	  const active = simPlayers.map((p,i) => p.busted? null : i).filter(i => i!==null);
+	  if (!active.length) return;
+	  const idx    = active[Math.floor(Math.random() * active.length)];
+	  const player = simPlayers[idx];
+
+	  // scale up how many mini‑bets they fire
+	  const multiplier = Math.max(
+		1,
+		Math.floor(player.balance / gameConfig.aiStartingCash)
+	  );
+	  for (let i = 0; i < multiplier; i++) {
+		// ...exactly the same one‑bet logic you already have:
+		const squares = Array.from(document.querySelectorAll('.square'))
+		  .filter(sq => !sq.classList.contains('no'));
+		const square = squares[Math.floor(Math.random()*squares.length)];
+		const amount = [10,25,100,250,500][Math.floor(Math.random()*5)];
+		if (player.balance < amount) continue;
+		player.balance -= amount;
+		player.bets.push({ square, amount });
+		const chip = document.createElement('div');
+		chip.classList.add('sim-chip');
+		chip.textContent = `$${amount}`;
+		chip.style.backgroundColor = playerColors[player.name];
+		const off = square.querySelectorAll('.sim-chip').length;
+		chip.style.top  = `${2 + off*12}px`;
+		chip.style.left = `${2 + off*12}px`;
+		square.appendChild(chip);
+		simPlacedChips.push(chip);
+	  }
+
+	  // update that AI's card
+	  const card = document.getElementById(`sim${idx+1}`);
+	  card.querySelector('p:nth-of-type(1)')
+		  .innerHTML = `<strong>Balance:</strong> $${player.balance}`;
+	  card.querySelector('p:nth-of-type(2)')
+		  .innerHTML = `<strong>Wager:</strong> $${player.bets.reduce((s,b)=>s+b.amount,0)}`;
+	}
+
+
+  // -------------------- SETUP SIM PLAYERS --------------------
+  function generateSimPlayers() {
+    const names = ["Luna","Blaze","Ace","Rogue","Nova","Jet"];
+    const used = new Set();
+    for (let i = 1; i <= 3; i++) {
+      let name;
+      do { name = names[Math.floor(Math.random() * names.length)]; }
+      while (used.has(name));
+      used.add(name);
+      const initBal = gameConfig.aiStartingCash;
+      simPlayers.push({ name, balance: initBal, bets: [], busted: false });
+      const card = document.getElementById(`sim${i}`);
+      card.innerHTML = `
+        <h3 style="color:${playerColors[name]}">${name}</h3>
+        <p><strong>Balance:</strong> $${initBal}</p>
+        <p><strong>Wager:</strong> $0</p>
+      `;
+    }
+    simulateFakeBets();
+  }
+
+  // -------------------- END‑OF‑GAME LOGIC --------------------
+	function checkEndConditions() {
+	  // --- Race mode win/lose by hitting target ---
+	  if (gameConfig.mode === 'race') {
+		// player hits target?
+		if (balance >= gameConfig.raceTarget) {
+		  alert(`🎉 You reached $${gameConfig.raceTarget}! You win the race!`);
+		  restartGame();
+		  return;
+		}
+		// any AI hits target?
+		const aiWinner = simPlayers.find(p => p.balance >= gameConfig.raceTarget);
+		if (aiWinner) {
+		  alert(`💀 ${aiWinner.name} reached $${gameConfig.raceTarget}. You lose the race.`);
+		  restartGame();
+		  return;
+		}
+		// otherwise keep going
+		return;
+	  }
+
+	  // --- Survival mode: original “bust” checks ---
+	  // mark busted AIs
+	  simPlayers.forEach((p, i) => {
+		if (!p.busted && p.balance <= SMALLEST_BET && p.bets.length === 0) {
+		  p.busted = true;
+		  const card = document.getElementById(`sim${i+1}`);
+		  card.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Balance:</strong> BUSTED`;
+		}
+	  });
+	  // player win if all AIs busted
+	  if (simPlayers.every(p => p.busted)) {
+		if (confirm(
+		  '🎉 All AI have busted! You win!\n\n' +
+		  'OK = Restart the game\n' +
+		  'Cancel = Keep playing solo'
+		)) {
+		  restartGame();
+		}
+		return;
+	  }
+	  // player bust
+	  if (balance <= SMALLEST_BET && placedBets.size === 0) {
+		alert('💀 You have no more funds and no active bets. Game over!');
+		restartGame();
+	  }
+	}
+
+
+  // -------------------- CONTEXT MENU --------------------
+  document.querySelectorAll('.square').forEach(square => {
+    square.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (square.classList.contains('no')) return;
+      if (bettingLocked) showLockedBetMenu(e.pageX, e.pageY);
+      else {
+        selectedSquare = square;
+        showBetMenu(e.pageX, e.pageY);
+      }
+    });
+  });
+  function showBetMenu(x, y) {
+    betMenu.innerHTML = `
+      <div data-amount="10">Bet 10</div>
+      <div data-amount="50">Bet 50</div>
+      <div data-amount="100">Bet 100</div>
+      <div data-amount="1000">Bet 1000</div>`;
+    betMenu.style.top = y + 'px';
+    betMenu.style.left = x + 'px';
+    betMenu.style.display = 'block';
+  }
+  function showLockedBetMenu(x, y) {
+    betMenu.innerHTML = `<div style="color:grey;cursor:not-allowed;">Bets Closed</div>`;
+    betMenu.style.top = y + 'px';
+    betMenu.style.left = x + 'px';
+    betMenu.style.display = 'block';
+  }
+  document.addEventListener('click', e => {
+    if (!betMenu.contains(e.target)) betMenu.style.display = 'none';
+  });
+  betMenu.addEventListener('click', e => {
+    if (bettingLocked) return;
+    const opt = e.target.closest('[data-amount]');
+    if (!opt || !selectedSquare) return;
+    placeBet(selectedSquare, parseInt(opt.dataset.amount));
+    betMenu.style.display = 'none';
+  });
+  clearBtn.addEventListener('click', clearBetsAndRefund);
+</script>
+</body>
+</html>
